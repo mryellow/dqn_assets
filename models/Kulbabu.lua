@@ -7,6 +7,7 @@ local Body = classic.class('Body')
 function Body:_init(opts)
   opts = opts or {}
 
+  self.hiddenSize = opts.hiddenSize
   self.recurrent = opts.recurrent
   self.histLen = opts.histLen
   self.stateSpec = opts.stateSpec
@@ -17,10 +18,6 @@ function Body:createBody()
   local histLen = self.recurrent and 1 or self.histLen
   local net = nn.Sequential()
   net:add(nn.View(histLen*self.stateSpec[2][1], self.stateSpec[2][2], self.stateSpec[2][3]))
-  net:add(nn.SpatialConvolution(histLen*self.stateSpec[2][1], 32, 5, 5, 2, 2, 1, 1))
-  net:add(nn.ReLU(true))
-  net:add(nn.SpatialConvolution(32, 32, 5, 5, 2, 2))
-  net:add(nn.ReLU(true))
 
   return net
 end
