@@ -1,3 +1,4 @@
+ros = require 'ros'
 local classic = require 'classic'
 
 local Kulbabu, super = classic.class('Kulbabu', Env)
@@ -6,23 +7,46 @@ local Kulbabu, super = classic.class('Kulbabu', Env)
 function Kulbabu:_init(opts)
   opts = opts or {}
 
-  self.width = opts.width or 24
-  self.height = opts.height or 24
-  self.nChannels = opts.nChannels or 1
-  self.screen = torch.Tensor(self.nChannels, self.height, self.width):zero()
+  self.width = opts.width or 8
+  self.height = opts.height or 1
+  self.channels = 1
+  self.screen = torch.Tensor(self.channels, self.height, self.width):zero()
+
+  self.ns = "kulbabu"
+  self.range_topics = {
+    "range_1l",
+    "range_1r",
+    "range_2l",
+    "range_2r",
+    "range_3l",
+    "range_3r",
+    "range_4l",
+    "range_4r"
+  }
+  self.range_msg = "sensor_msgs/Range"
+
+  self.subs = {}
+  self.pubs = {}
+
+  ros.init('kulbabu_dqn')
+
+  spinner = ros.AsyncSpinner()
+  spinner:start()
+
+  self.nh = ros.NodeHandle()
 end
 
 function Kulbabu:getStateSpec()
-  return {'real', {self.nChannels, self.height, self.width}, {0, 1}}
+  return {'real', {self.channels, self.height, self.width}, {0, 1}}
 end
 
--- 1 action required, of type 'int', of dimensionality 1, between 0 and 2
+-- forward, left-forward, right-forward, left, right
 function Kulbabu:getActionSpec()
-  return {'int', 1, {0, 2}}
+  return {'int', 1, {0, 4}}
 end
 
 function Kulbabu:getDisplaySpec()
-  return {'real', {self.nChannels, self.height, self.width}, {0, 1}}
+  return {'real', {self.channels, self.height, self.width}, {0, 1}}
 end
 
 -- Min and max reward
@@ -30,9 +54,8 @@ function Kulbabu:getRewardSpec()
   return 0, 1
 end
 
--- Redraws screen based on state
+-- Reset screen
 function Kulbabu:clear()
-  -- Reset screen
   self.screen:zero()
 end
 
@@ -42,8 +65,17 @@ function Kulbabu:start()
   self:clear()
 
   -- TODO: Subscribe to range sensor topics
-  -- TODO: self.screen[{{1}, {self.size}, {self.player.x, self.player.x + self.player.width - 1}}] = 1
-
+  for i, topic in ipairs(self.range_topics) do
+    subscriber = self.nh:subscribe("/" .. self.ns .. i .. "/" .. topic, self.range_msg, 100)
+    subscriber:registerCallback(function(msg, header)
+      print('Header:')
+      print(header)
+      print('Message:')
+      print(msg)
+      -- TODO: self.screen[{{1}, {self.size}, {self.player.x, self.player.x + self.player.width - 1}}] = 1
+    end)
+    table.insert(self.subs, subscriber)
+  end
   -- TODO: Subscribe to states for goal relative position
 
   -- Return observation
