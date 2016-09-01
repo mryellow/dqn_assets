@@ -77,6 +77,15 @@ function Kulbabu:_init(opts)
   end
 
   self.nh = ros.NodeHandle()
+
+  -- TODO: Capture sigint destroy pub/subs and `ros.shutdown()``
+  local signal = require("posix.signal")
+
+  signal.signal(signal.SIGINT, function(signum)
+    io.write("\n")
+    ros.shutdown()
+    os.exit(128 + signum)
+  end)
 end
 
 function Kulbabu:getStateSpec()
@@ -285,14 +294,6 @@ function Kulbabu:refreshGoal(rad, dis)
     end
   end
 end
-
--- TODO: Capture sigint destroy pub/subs and `ros.shutdown()``
-local signal = require("posix.signal")
-
-signal.signal(signal.SIGINT, function(signum)
-  io.write("\n")
-  os.exit(128 + signum)
-end)
 
 function get_key_for_value(t, value)
   for k,v in pairs(t) do
