@@ -37,6 +37,33 @@ function Kulbabu:_init(opts)
   self.subs = {}
   self.pubs = {}
 
+  self.robot_pose = {
+    position = {
+      x = 0,
+      y = 0,
+      z = 0
+    },
+    orientation = {
+      x = 0,
+      y = 0,
+      z = 0,
+      w = 0
+    }
+  }
+  self.goal_pose = {
+    position = {
+      x = 0,
+      y = 0,
+      z = 0
+    },
+    orientation = {
+      x = 0,
+      y = 0,
+      z = 0,
+      w = 0
+    }
+  }
+
   ros.init(self.ns .. "_dqn")
 
   spinner = ros.AsyncSpinner()
@@ -91,8 +118,10 @@ function Kulbabu:step(action)
   -- Publish twists for actions
   self:pubAction(action)
 
-  -- TODO: Calculate reward based on reaching goal
-  -- Will need subscription to states and trig for relative position.
+  -- Calculate reward based on reaching goal
+  local rad, dis = self:goalLocation()
+  log.info("rad: " .. rad)
+  log.info("dis: " .. dis)
 
   -- TODO: Check terminal condition
   local terminal = false
@@ -109,6 +138,7 @@ end
 function Kulbabu:createSubs()
   self:destroySubs()
 
+  local subscriber
   -- Subscribe to range sensor topics and update state
   for i, topic in ipairs(self.range_topics) do
     log.info("Subscribe: /" .. self.ns .. "/" .. topic)
@@ -121,6 +151,18 @@ function Kulbabu:createSubs()
   end
 
   -- TODO: Subscribe to states for goal relative position
+  subscriber = self.nh:subscribe("/gazebo/model_states", "gazebo_msgs/ModelStates", 100)
+  subscriber:registerCallback(function(msg, header)
+    local robot_key = get_key_for_value(msg.name, self.ns)
+    --log.info("robot: " .. msg.pose[robot_key].position.x .. "/" .. msg.pose[robot_key].position.y)
+    self.robot_pose.position = msg.pose[robot_key].position
+    self.robot_pose.orientation = msg.pose[robot_key].orientation
+    local goal_key = get_key_for_value(msg.name, self.ns .. "/goal")
+    --log.info("goal: " .. msg.pose[goal_key].position.x .. "/" .. msg.pose[goal_key].position.y)
+    self.goal_pose.position = msg.pose[goal_key].position
+    self.goal_pose.orientation = msg.pose[goal_key].orientation
+  end)
+  table.insert(self.subs, subscriber)
 end
 
 -- Destroy any existing subscriptions
@@ -134,7 +176,7 @@ end
 function Kulbabu:createPubs()
   self:destroyPubs()
 
-  publisher = self.nh:advertise(self.cmd_vel_topic, self.cmd_vel_msg, 100, false, connect_cb, disconnect_cb)
+  local publisher = self.nh:advertise(self.cmd_vel_topic, self.cmd_vel_msg, 100, false, connect_cb, disconnect_cb)
   table.insert(self.pubs, publisher)
   ros.spinOnce()
 end
@@ -156,8 +198,8 @@ function disconnect_cb(name, topic)
 end
 
 function Kulbabu:pubAction(action)
-  msg = ros.Message(self.cmd_vel_msg)
-  publisher = self.pubs[1]
+  local msg = ros.Message(self.cmd_vel_msg)
+  local publisher = self.pubs[1]
   if publisher:getNumSubscribers() == 0 then
     --log.info('waiting for subscriber')
   else
@@ -187,6 +229,43 @@ function Kulbabu:pubAction(action)
   end
 end
 
+function Kulbabu:goalLocation()
+  --`tan(rad) = Opposite / Adjacent = (y2-y1)/(x2-x1)`
+  local rad = math.atan2(
+    self.goal_pose.position.y - self.robot_pose.position.y,
+    self.goal_pose.position.x - self.robot_pose.position.x
+  )
+
+  -- `Hypotenuse = (y2-y1)/sin(rad)`
+  local dis = math.abs(
+    (self.goal_pose.position.y - self.robot_pose.position.y)/math.sin(rad)
+  )
+
+  -- Extract angles from quaternion.
+  -- http://stackoverflow.com/a/18115837/2438830
+  local q = self.robot_pose.orientation
+  local robot_yaw = math.atan2(2.0*(q.x*q.y + q.w*q.z), q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z);
+
+-- Minus robot pose from goal direction.
+  rad = rad - robot_yaw
+  if rad > math.pi then
+    rad = rad - (2 * math.pi)
+  elseif rad < -math.pi then
+    rad = rad + (2 * math.pi)
+  end
+
+  return rad, dis
+end
+
 -- TODO: Capture sigint destroy pub/subs and `ros.shutdown()``
+
+function get_key_for_value(t, value)
+  for k,v in pairs(t) do
+    if v==value then
+      return k
+    end
+  end
+  return nil
+end
 
 return Kulbabu
