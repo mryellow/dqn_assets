@@ -9,6 +9,7 @@ function Kulbabu:_init(opts)
 
   self.width = opts.width or 8
   self.height = opts.height or 1
+  -- TODO: Second channel for goal direction/distance.
   self.channels = 1
   self.screen = torch.Tensor(self.channels, self.height, self.width):zero()
 
@@ -62,15 +63,10 @@ function Kulbabu:getRewardSpec()
   return 0, 1
 end
 
--- Reset screen
-function Kulbabu:clear()
-  self.screen:zero()
-end
-
 -- Starts new game
 function Kulbabu:start()
-  -- Clear screen
-  self:clear()
+  -- Reset screen
+  self.screen:zero()
 
   -- Subscribe to ROS topics
   self:createSubs()
@@ -190,5 +186,7 @@ function Kulbabu:pubAction(action)
     publisher:publish(msg)
   end
 end
+
+-- TODO: Capture sigint destroy pub/subs and `ros.shutdown()``
 
 return Kulbabu
