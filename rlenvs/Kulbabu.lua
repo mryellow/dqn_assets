@@ -67,9 +67,11 @@ function Kulbabu:_init(opts)
     }
   }
 
-  ros.init(self.ns .. "_dqn")
+  if not ros.isInitialized() then
+    ros.init(self.ns .. "_dqn")
+  end
 
-  if not __threadid or __threadid == 0 then
+  if not ros.isStarted() then
     __ros_spinner = ros.AsyncSpinner()
     __ros_spinner:start()
   end
@@ -163,12 +165,16 @@ function Kulbabu:createSubs()
   subscriber:registerCallback(function(msg, header)
     local robot_key = get_key_for_value(msg.name, self.ns)
     --log.info("robot: " .. msg.pose[robot_key].position.x .. "/" .. msg.pose[robot_key].position.y)
-    self.robot_pose.position = msg.pose[robot_key].position
-    self.robot_pose.orientation = msg.pose[robot_key].orientation
+    if robot_key then
+      self.robot_pose.position = msg.pose[robot_key].position
+      self.robot_pose.orientation = msg.pose[robot_key].orientation
+    end
     local goal_key = get_key_for_value(msg.name, self.ns .. "/goal")
     --log.info("goal: " .. msg.pose[goal_key].position.x .. "/" .. msg.pose[goal_key].position.y)
-    self.goal_pose.position = msg.pose[goal_key].position
-    self.goal_pose.orientation = msg.pose[goal_key].orientation
+    if goal_key then
+      self.goal_pose.position = msg.pose[goal_key].position
+      self.goal_pose.orientation = msg.pose[goal_key].orientation
+    end
   end)
   table.insert(self.subs, subscriber)
 end
