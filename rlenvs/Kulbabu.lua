@@ -128,7 +128,7 @@ function Kulbabu:step(action)
   self:refreshGoal(rad, dis)
 
   -- Calculate reward based on reaching goal
-  reward = math.min(1,1 - (dis / self.goal_max))
+  reward = math.max(0,1 - (dis / self.goal_max))
   --log.info("Reward: " .. reward)
 
   -- TODO: Check terminal condition
@@ -153,7 +153,7 @@ function Kulbabu:createSubs()
     subscriber = self.nh:subscribe("/" .. self.ns .. "/" .. topic, self.range_msg, 100)
     subscriber:registerCallback(function(msg, header)
       --log.info(msg.range / msg.max_range)
-      self.screen[{{1}, {1}, {i}}] = math.min(1,1 - (msg.range / msg.max_range))
+      self.screen[{{1}, {1}, {i}}] = math.max(0,1 - (msg.range / msg.max_range))
     end)
     table.insert(self.subs, subscriber)
   end
@@ -272,7 +272,7 @@ function Kulbabu:refreshGoal(rad, dis)
       local seg_begin  = -math.pi+(fov*(x-1))
       local seg_finish = seg_begin + fov
       if seg_begin < rad and seg_finish >= rad then
-        self.screen[{{2}, {1}, {x}}] = math.min(1,1 - (dis / self.goal_max))
+        self.screen[{{2}, {1}, {x}}] = math.max(0,1 - (dis / self.goal_max))
       else
         self.screen[{{2}, {1}, {x}}] = 0
       end
