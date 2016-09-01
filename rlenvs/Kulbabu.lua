@@ -9,9 +9,12 @@ function Kulbabu:_init(opts)
 
   self.width = opts.width or 8
   self.height = opts.height or 1
-  -- TODO: Second channel for goal direction/distance.
-  self.channels = 1
+  -- Second channel for goal direction/distance.
+  self.channels = 2
   self.screen = torch.Tensor(self.channels, self.height, self.width):zero()
+
+  -- Max-range for goal sensor
+  self.goal_max = 10
 
   self.ns = "kulbabu"
   if __threadid then
@@ -120,8 +123,7 @@ function Kulbabu:step(action)
 
   -- Calculate reward based on reaching goal
   local rad, dis = self:goalLocation()
-  log.info("rad: " .. rad)
-  log.info("dis: " .. dis)
+  self:refreshGoal(rad, dis)
 
   -- TODO: Check terminal condition
   local terminal = false
@@ -145,12 +147,12 @@ function Kulbabu:createSubs()
     subscriber = self.nh:subscribe("/" .. self.ns .. "/" .. topic, self.range_msg, 100)
     subscriber:registerCallback(function(msg, header)
       --log.info(msg.range / msg.max_range)
-      self.screen[{{1}, {1}, {i}}] = msg.range / msg.max_range
+      self.screen[{{1}, {1}, {i}}] = math.min(1,1 - (msg.range / msg.max_range))
     end)
     table.insert(self.subs, subscriber)
   end
 
-  -- TODO: Subscribe to states for goal relative position
+  -- Subscribe to states for goal relative position
   subscriber = self.nh:subscribe("/gazebo/model_states", "gazebo_msgs/ModelStates", 100)
   subscriber:registerCallback(function(msg, header)
     local robot_key = get_key_for_value(msg.name, self.ns)
@@ -190,11 +192,11 @@ function Kulbabu:destroyPubs()
 end
 
 function connect_cb(name, topic)
-  print("subscriber connected: " .. name .. " (topic: '" .. topic .. "')")
+  log.debug("subscriber connected: " .. name .. " (topic: '" .. topic .. "')")
 end
 
 function disconnect_cb(name, topic)
-  print("subscriber diconnected: " .. name .. " (topic: '" .. topic .. "')")
+  log.debug("subscriber diconnected: " .. name .. " (topic: '" .. topic .. "')")
 end
 
 function Kulbabu:pubAction(action)
@@ -255,6 +257,21 @@ function Kulbabu:goalLocation()
   end
 
   return rad, dis
+end
+
+function Kulbabu:refreshGoal(rad, dis)
+  if self.channels > 1 and dis > 0 then
+    local fov = (2*math.pi)/self.width
+    for x=1,self.width do
+      local seg_begin  = -math.pi+(fov*(x-1))
+      local seg_finish = seg_begin + fov
+      if seg_begin < rad and seg_finish >= rad then
+        self.screen[{{2}, {1}, {x}}] = math.min(1,1 - (dis / self.goal_max))
+      else
+        self.screen[{{2}, {1}, {x}}] = 0
+      end
+    end
+  end
 end
 
 -- TODO: Capture sigint destroy pub/subs and `ros.shutdown()``
