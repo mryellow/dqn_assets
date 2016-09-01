@@ -69,8 +69,10 @@ function Kulbabu:_init(opts)
 
   ros.init(self.ns .. "_dqn")
 
-  spinner = ros.AsyncSpinner()
-  spinner:start()
+  if not __threadid or __threadid == 0 then
+    __ros_spinner = ros.AsyncSpinner()
+    __ros_spinner:start()
+  end
 
   self.nh = ros.NodeHandle()
 end
@@ -279,6 +281,12 @@ function Kulbabu:refreshGoal(rad, dis)
 end
 
 -- TODO: Capture sigint destroy pub/subs and `ros.shutdown()``
+local signal = require("posix.signal")
+
+signal.signal(signal.SIGINT, function(signum)
+  io.write("\n")
+  os.exit(128 + signum)
+end)
 
 function get_key_for_value(t, value)
   for k,v in pairs(t) do
