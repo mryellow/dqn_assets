@@ -121,9 +121,13 @@ function Kulbabu:step(action)
   -- Publish twists for actions
   self:pubAction(action)
 
-  -- Calculate reward based on reaching goal
+  -- Get/update relative location
   local rad, dis = self:goalLocation()
   self:refreshGoal(rad, dis)
+
+  -- Calculate reward based on reaching goal
+  reward = math.min(1,1 - (dis / self.goal_max))
+  --log.info("Reward: " .. reward)
 
   -- TODO: Check terminal condition
   local terminal = false
