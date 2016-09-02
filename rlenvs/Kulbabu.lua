@@ -1,4 +1,6 @@
-ros = require 'ros'
+local ros = require('ros')
+local signal = require('posix.signal')
+local socket = require('socket')
 local classic = require 'classic'
 
 local Kulbabu = classic.class('Kulbabu')
@@ -16,6 +18,10 @@ function Kulbabu:_init(opts)
   -- Max-range for goal sensor
   self.goal_max = 10
   self.goal_min = 0.1
+
+  -- Frame-rate
+  self.frame_rate = 10
+  self.frame_time = 1/self.frame_rate
 
   self.ns = "kulbabu"
   if __threadid then
@@ -80,8 +86,6 @@ function Kulbabu:_init(opts)
   self.nh = ros.NodeHandle()
 
   -- TODO: Capture sigint destroy pub/subs and `ros.shutdown()``
-  local signal = require("posix.signal")
-
   signal.signal(signal.SIGINT, function(signum)
     io.write("\n")
     ros.shutdown()
@@ -127,13 +131,17 @@ function Kulbabu:step(action)
   -- Reward is 0 by default
   local reward = 0
 
+  -- Publish twists for actions
+  self:pubAction(action)
+
+  -- Delay execution, giving state time to change
+  socket.sleep(self.frame_time)
+  print('oi')
+
   -- Spin ROS and get messages
   if ros.ok() then
     ros.spinOnce()
   end
-
-  -- Publish twists for actions
-  self:pubAction(action)
 
   -- Get/update relative location
   local rad, dis = self:goalLocation()
