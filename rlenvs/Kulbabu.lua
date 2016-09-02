@@ -17,7 +17,7 @@ function Kulbabu:_init(opts)
 
   -- Max-range for goal sensor
   self.goal_max = 10
-  self.goal_min = 0.1
+  self.goal_min = 0.25
 
   -- Frame-rate
   self.frame_rate = 10
@@ -43,6 +43,9 @@ function Kulbabu:_init(opts)
 
   self.cmd_vel_topic = "/" .. self.ns .. "/diff_drive_controller/cmd_vel"
   self.cmd_vel_msg = ros.MsgSpec('geometry_msgs/Twist')
+
+  self.model_state_topic = "/gazebo/set_model_state"
+  self.model_state_msg = ros.MsgSpec('gazebo_msgs/ModelState')
 
   self.subs = {}
   self.pubs = {}
@@ -136,7 +139,6 @@ function Kulbabu:step(action)
 
   -- Delay execution, giving state time to change
   socket.sleep(self.frame_time)
-  print('oi')
 
   -- Spin ROS and get messages
   if ros.ok() then
@@ -151,6 +153,7 @@ function Kulbabu:step(action)
   --reward = math.max(0,1 - (dis / self.goal_max))
   if dis < self.goal_min then
     log.info('Goal reached')
+    --self:moveGoal()
     reward = 1
   end
   --log.info("Reward: " .. reward)
@@ -212,8 +215,10 @@ end
 function Kulbabu:createPubs()
   self:destroyPubs()
 
-  local publisher = self.nh:advertise(self.cmd_vel_topic, self.cmd_vel_msg, 100, false, connect_cb, disconnect_cb)
-  table.insert(self.pubs, publisher)
+  local pub_cmd_vel = self.nh:advertise(self.cmd_vel_topic, self.cmd_vel_msg, 100, false, connect_cb, disconnect_cb)
+  table.insert(self.pubs, pub_cmd_vel)
+  local pub_model_state = self.nh:advertise(self.model_state_topic, self.model_state_msg, 100, false, connect_cb, disconnect_cb)
+  table.insert(self.pubs, pub_model_state)
   ros.spinOnce()
 end
 
@@ -226,11 +231,11 @@ function Kulbabu:destroyPubs()
 end
 
 function connect_cb(name, topic)
-  log.debug("subscriber connected: " .. name .. " (topic: '" .. topic .. "')")
+  log.info("subscriber connected: " .. name .. " (topic: '" .. topic .. "')")
 end
 
 function disconnect_cb(name, topic)
-  log.debug("subscriber diconnected: " .. name .. " (topic: '" .. topic .. "')")
+  log.info("subscriber diconnected: " .. name .. " (topic: '" .. topic .. "')")
 end
 
 function Kulbabu:pubAction(action)
@@ -261,6 +266,35 @@ function Kulbabu:pubAction(action)
       msg.angular.z = 1.00
     end
     --log.info(msg)
+    publisher:publish(msg)
+  end
+end
+
+function Kulbabu:moveGoal(x, y, z)
+  if not x then
+    x = self.goal_pose.position.x + math.random(-3,3)
+  end
+  if not y then
+    y = self.goal_pose.position.y + math.random(-3,3)
+  end
+  if not z then
+    y = self.goal_pose.position.z
+  end
+
+  local msg = ros.Message(self.model_state_msg)
+  local publisher = self.pubs[2]
+  if publisher:getNumSubscribers() == 0 then
+    --log.info('waiting for subscriber')
+  else
+    msg.model_name = self.ns .. "/goal"
+    msg.pose.position = {
+      x = x,
+      y = y,
+      z = z
+    }
+    msg.reference_frame = 'world'
+    print(msg)
+
     publisher:publish(msg)
   end
 end
