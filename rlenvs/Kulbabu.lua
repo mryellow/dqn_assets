@@ -1,7 +1,7 @@
 ros = require 'ros'
 local classic = require 'classic'
 
-local Kulbabu, super = classic.class('Kulbabu', Env)
+local Kulbabu = classic.class('Kulbabu')
 
 -- Constructor
 function Kulbabu:_init(opts)
@@ -145,7 +145,7 @@ function Kulbabu:step(action)
   -- TODO: Check terminal condition
   local terminal = false
 
-  return reward, self.screen, terminal
+  return reward, self.screen, terminal, action
 end
 
 -- Returns (RGB) display of screen
