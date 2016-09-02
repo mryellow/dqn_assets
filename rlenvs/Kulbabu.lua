@@ -150,6 +150,7 @@ function Kulbabu:step(action)
   -- Calculate reward based on reaching goal
   --reward = math.max(0,1 - (dis / self.goal_max))
   if dis < self.goal_min then
+    log.info('Goal reached')
     reward = 1
   end
   --log.info("Reward: " .. reward)
