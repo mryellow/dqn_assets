@@ -15,6 +15,7 @@ function Kulbabu:_init(opts)
 
   -- Max-range for goal sensor
   self.goal_max = 10
+  self.goal_min = 0.1
 
   self.ns = "kulbabu"
   if __threadid then
@@ -139,7 +140,10 @@ function Kulbabu:step(action)
   self:refreshGoal(rad, dis)
 
   -- Calculate reward based on reaching goal
-  reward = math.max(0,1 - (dis / self.goal_max))
+  --reward = math.max(0,1 - (dis / self.goal_max))
+  if dis < self.goal_min then
+    reward = 1
+  end
   --log.info("Reward: " .. reward)
 
   -- TODO: Check terminal condition
