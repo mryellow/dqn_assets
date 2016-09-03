@@ -24,9 +24,9 @@ function Kulbabu:_init(opts)
   self.frame_time = 1/self.frame_rate
 
   -- Escape sequence
-  self.escape_steps = 10 * 20 -- seconds at 10Hz
+  self.escape_steps = self.frame_rate * 20 -- seconds at frame_rate Hz
   self.escape_min = 0.15 -- Distance in metres
-  self.repeat_for = 10 * 4 -- seconds at 10Hz
+  self.repeat_for = self.frame_rate * 4
   self.repeat_steps = 0
   self.repeat_action = 0
 
