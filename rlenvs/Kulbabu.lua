@@ -155,7 +155,18 @@ end
 function Kulbabu:step(action)
   -- Reward is 0 by default
   local reward = 0
-  local nextAction
+
+  if self.train then
+    -- Escape sequence, triggered when robot position doesn't change over time
+    if self.repeat_steps > 0 then
+      action = self.repeat_action
+      self.repeat_steps = self.repeat_steps - 1
+    elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
+      self.repeat_steps = self.repeat_for
+      self.repeat_action = math.random(3,4)
+    end
+    self.robot_pose_log[(self.steps % self.escape_steps) + 1] = self.robot_pose.position
+  end
 
   -- Publish twists for actions
   self:pubAction(action)
@@ -182,24 +193,12 @@ function Kulbabu:step(action)
   end
   --log.info("Reward: " .. reward)
 
-  if self.train then
-    -- Escape sequence, triggered when robot position doesn't change over time
-    if self.repeat_steps > 0 then
-      nextAction = self.repeat_action
-      self.repeat_steps = self.repeat_steps - 1
-    elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
-      self.repeat_steps = self.repeat_for
-      self.repeat_action = math.random(3,4)
-    end
-    self.robot_pose_log[(self.steps % self.escape_steps) + 1] = self.robot_pose.position
-  end
-
   -- TODO: Check terminal condition
   local terminal = false
 
   self.steps = self.steps + 1
 
-  return reward, self.screen, terminal, nextAction
+  return reward, self.screen, terminal, action
 end
 
 function Kulbabu:escapeCheck()
