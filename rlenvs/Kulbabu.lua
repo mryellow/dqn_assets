@@ -23,6 +23,13 @@ function Kulbabu:_init(opts)
   self.frame_rate = 10
   self.frame_time = 1/self.frame_rate
 
+  -- Escape sequence
+  self.escape_steps = 10 * 20 -- seconds at 10Hz
+  self.escape_min = 0.15 -- Distance in metres
+  self.repeat_for = 10 * 4 -- seconds at 10Hz
+  self.repeat_steps = 0
+  self.repeat_action = 0
+
   self.ns = "kulbabu"
   if __threadid then
     self.ns = self.ns .. __threadid
@@ -76,6 +83,9 @@ function Kulbabu:_init(opts)
       w = 0
     }
   }
+  self.robot_pose_log = {}
+
+  self.steps = 0
 
   if not ros.isInitialized() then
     ros.init(self.ns .. "_dqn")
@@ -116,6 +126,8 @@ end
 
 -- Starts new game
 function Kulbabu:start()
+  self.steps = 0
+
   -- Reset screen
   self.screen:zero()
 
@@ -133,11 +145,13 @@ end
 function Kulbabu:step(action)
   -- Reward is 0 by default
   local reward = 0
+  local nextAction
 
   -- Publish twists for actions
   self:pubAction(action)
 
   -- Delay execution, giving state time to change
+  -- TODO: What does `ros.sleep()` do? Sleep ros or current process?
   socket.sleep(self.frame_time)
 
   -- Spin ROS and get messages
@@ -158,10 +172,44 @@ function Kulbabu:step(action)
   end
   --log.info("Reward: " .. reward)
 
+  -- Escape sequence, triggered when robot position doesn't change over time
+  if self.repeat_steps > 0 then
+    nextAction = self.repeat_action
+    self.repeat_steps = self.repeat_steps - 1
+  elseif self.steps % self.escape_steps == 0 and self:checkEscape() then
+    self.repeat_steps = self.repeat_for
+    self.repeat_action = math.random(3,4)
+  end
+  self.robot_pose_log[(self.steps % self.escape_steps) + 1] = self.robot_pose.position
+
   -- TODO: Check terminal condition
   local terminal = false
 
-  return reward, self.screen, terminal, action
+  self.steps = self.steps + 1
+
+  return reward, self.screen, terminal, nextAction
+end
+
+function Kulbabu:checkEscape()
+  local begin = self.robot_pose_log[1]
+  local finish = self.robot_pose_log[#self.robot_pose_log]
+
+  if not begin or not finish then
+    return false
+  end
+
+  --`tan(rad) = Opposite / Adjacent = (y2-y1)/(x2-x1)`
+  local rad = math.atan2(
+    finish.y - begin.y,
+    finish.x - begin.x
+  )
+
+  -- `Hypotenuse = (y2-y1)/sin(rad)`
+  local dis = math.abs(
+    (finish.y - begin.y)/math.sin(rad)
+  )
+
+  return dis < self.escape_min
 end
 
 -- Returns (RGB) display of screen
