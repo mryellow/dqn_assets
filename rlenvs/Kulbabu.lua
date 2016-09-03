@@ -161,13 +161,13 @@ function Kulbabu:step(action)
 
   -- Get/update relative location
   local rad, dis = self:goalLocation()
-  self:refreshGoal(rad, dis)
+  self:goalRefresh(rad, dis)
 
   -- Calculate reward based on reaching goal
   --reward = math.max(0,1 - (dis / self.goal_max))
   if dis < self.goal_min then
     log.info('Goal reached')
-    --self:moveGoal()
+    --self:pubGoalMove()
     reward = 1
   end
   --log.info("Reward: " .. reward)
@@ -176,7 +176,7 @@ function Kulbabu:step(action)
   if self.repeat_steps > 0 then
     nextAction = self.repeat_action
     self.repeat_steps = self.repeat_steps - 1
-  elseif self.steps % self.escape_steps == 0 and self:checkEscape() then
+  elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
     self.repeat_steps = self.repeat_for
     self.repeat_action = math.random(3,4)
   end
@@ -190,7 +190,7 @@ function Kulbabu:step(action)
   return reward, self.screen, terminal, nextAction
 end
 
-function Kulbabu:checkEscape()
+function Kulbabu:escapeCheck()
   local begin = self.robot_pose_log[1]
   local finish = self.robot_pose_log[#self.robot_pose_log]
 
@@ -318,7 +318,7 @@ function Kulbabu:pubAction(action)
   end
 end
 
-function Kulbabu:moveGoal(x, y, z)
+function Kulbabu:pubGoalMove(x, y, z)
   if not x then
     x = self.goal_pose.position.x + math.random(-3,3)
   end
@@ -375,7 +375,7 @@ function Kulbabu:goalLocation()
   return rad, dis
 end
 
-function Kulbabu:refreshGoal(rad, dis)
+function Kulbabu:goalRefresh(rad, dis)
   if self.channels > 1 and dis > 0 then
     local fov = (2*math.pi)/self.width
     for x=1,self.width do
