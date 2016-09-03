@@ -54,6 +54,8 @@ function Kulbabu:_init(opts)
   self.model_state_topic = "/gazebo/set_model_state"
   self.model_state_msg = ros.MsgSpec('gazebo_msgs/ModelState')
 
+  self.training = false
+
   self.subs = {}
   self.pubs = {}
 
@@ -124,6 +126,14 @@ function Kulbabu:getRewardSpec()
   return 0, 1
 end
 
+function Kulbabu:training()
+  self.training = true
+end
+
+function Kulbabu:evaluate()
+  self.training = false
+end
+
 -- Starts new game
 function Kulbabu:start()
   self.steps = 0
@@ -172,15 +182,17 @@ function Kulbabu:step(action)
   end
   --log.info("Reward: " .. reward)
 
-  -- Escape sequence, triggered when robot position doesn't change over time
-  if self.repeat_steps > 0 then
-    nextAction = self.repeat_action
-    self.repeat_steps = self.repeat_steps - 1
-  elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
-    self.repeat_steps = self.repeat_for
-    self.repeat_action = math.random(3,4)
+  if self.training then
+    -- Escape sequence, triggered when robot position doesn't change over time
+    if self.repeat_steps > 0 then
+      nextAction = self.repeat_action
+      self.repeat_steps = self.repeat_steps - 1
+    elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
+      self.repeat_steps = self.repeat_for
+      self.repeat_action = math.random(3,4)
+    end
+    self.robot_pose_log[(self.steps % self.escape_steps) + 1] = self.robot_pose.position
   end
-  self.robot_pose_log[(self.steps % self.escape_steps) + 1] = self.robot_pose.position
 
   -- TODO: Check terminal condition
   local terminal = false
