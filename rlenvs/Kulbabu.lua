@@ -164,6 +164,7 @@ function Kulbabu:step(action)
     elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
       self.repeat_steps = self.repeat_for
       self.repeat_action = math.random(3,4)
+      action = self.repeat_action
     end
     self.robot_pose_log[(self.steps % self.escape_steps) + 1] = self.robot_pose.position
   end
