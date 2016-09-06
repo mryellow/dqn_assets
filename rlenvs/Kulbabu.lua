@@ -10,6 +10,7 @@ local Kulbabu = classic.class('Kulbabu')
 function Kulbabu:_init(opts)
   opts = opts or {}
 
+  self.threads = opts.threads or 1
   self.width = opts.width or 8
   self.height = opts.height or 1
   -- Second channel for goal direction/distance.
@@ -56,12 +57,6 @@ function Kulbabu:_init(opts)
   self.model_state_msg = ros.MsgSpec('gazebo_msgs/ModelState')
 
   self.train = false
-
-  -- Message queue to communicate between threads.
-  self.chan = chan.get("kulbabu_mq")
-  if not self.chan then
-    self.chan = chan.new("kulbabu_mq")
-  end
 
   self.subs = {}
   self.pubs = {}
@@ -128,6 +123,13 @@ end
 -- Starts new game
 function Kulbabu:start()
   log.info("Start: " .. self.ns)
+
+  -- Message queue to communicate between threads.
+  self.chan = chan.get("kulbabu_mq")
+  if not self.chan then
+    log.info("Creating MQ")
+    self.chan = chan.new("kulbabu_mq", self.threads)
+  end
 
   self.steps = 0
 
@@ -324,7 +326,8 @@ function Kulbabu:createSubs()
       -- Remove extra comma on end
       msg = msg:gsub(',%s*([%]%}])', '%1')
       --print('send ' .. self.ns)
-      self.chan:send(msg, self.frame_time/2)
+      --self.chan:send(msg, self.frame_time/2)
+      self.chan:send(msg)
     end)
     table.insert(self.subs, subscriber)
   end
