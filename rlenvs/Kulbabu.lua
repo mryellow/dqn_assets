@@ -158,7 +158,7 @@ function Kulbabu:step(action)
       action = self.repeat_action
       self.repeat_steps = self.repeat_steps - 1
     elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
-      --log.info('Escape')
+      log.info('Escape')
       self.repeat_steps = self.repeat_for
       self.repeat_action = math.random(3,4)
       action = self.repeat_action
@@ -245,6 +245,8 @@ function Kulbabu:escapeCheck()
     (finish.y - begin.y)/math.sin(rad)
   )
 
+  log.info('dis: ' .. dis)
+
   return dis < self.escape_min
 end
 
@@ -256,14 +258,14 @@ end
 
 function Kulbabu:initRos()
   if not ros.isInitialized() then
-    --log.info('ROS Initialise')
+    log.info('ROS Initialise')
     ros.init(self.ns .. "_dqn")
   end
 
   if not ros.isStarted() then
-    --log.info('ROS Start Spinner')
     local spinner = ros.AsyncSpinner()
     if spinner:canStart() then
+      log.info('ROS Start Spinner')
       spinner:start()
     end
   end
@@ -300,6 +302,7 @@ function Kulbabu:createSubs()
   if not __threadid or __threadid == 0 then
     log.info("Subscribe: /gazebo/model_states")
     subscriber = self.nh:subscribe("/gazebo/model_states", "gazebo_msgs/ModelStates", 10)
+    -- TODO: Warn if no messages coming through?
     subscriber:registerCallback(function(msg, header)
       self:processState(msg)
 
@@ -316,7 +319,7 @@ function Kulbabu:createSubs()
       msg = msg:gsub('(%})%s*("%w*":)', '%1,%2')
       -- Remove extra comma on end
       msg = msg:gsub(',%s*([%]%}])', '%1')
-      self.chan:send(msg)
+      self.chan:send(msg, self.frame_time/2)
     end)
     table.insert(self.subs, subscriber)
   end
