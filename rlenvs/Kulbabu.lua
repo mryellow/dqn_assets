@@ -311,23 +311,24 @@ function Kulbabu:createSubs()
     -- TODO: Warn if no messages coming through?
     subscriber:registerCallback(function(msg, header)
       self:processState(msg)
-
-      local msg = tostring(msg)
-      -- Remove message type headers
-      msg = msg:gsub('[^%s]*_msgs%/[^%s]+', '')
-      -- Quote key name strings
-      msg = msg:gsub('([%w]+)%s:', '"%1":')
-      -- Put comma on end of arrays
-      msg = msg:gsub('].[^%}]', '],')
-      -- Put comma between fields
-      msg = msg:gsub('([^%{]......)("%w":)', '%1,%2')
-      -- Put comma between objects
-      msg = msg:gsub('(%})%s*("%w*":)', '%1,%2')
-      -- Remove extra comma on end
-      msg = msg:gsub(',%s*([%]%}])', '%1')
-      --print('send ' .. self.ns)
-      --self.chan:send(msg, self.frame_time/2)
-      self.chan:send(msg)
+      if self.threads > 1 then
+        local msg = tostring(msg)
+        -- Remove message type headers
+        msg = msg:gsub('[^%s]*_msgs%/[^%s]+', '')
+        -- Quote key name strings
+        msg = msg:gsub('([%w]+)%s:', '"%1":')
+        -- Put comma on end of arrays
+        msg = msg:gsub('].[^%}]', '],')
+        -- Put comma between fields
+        msg = msg:gsub('([^%{]......)("%w":)', '%1,%2')
+        -- Put comma between objects
+        msg = msg:gsub('(%})%s*("%w*":)', '%1,%2')
+        -- Remove extra comma on end
+        msg = msg:gsub(',%s*([%]%}])', '%1')
+        --print('send ' .. self.ns)
+        --self.chan:send(msg, self.frame_time/2)
+        self.chan:send(msg)
+      end
     end)
     table.insert(self.subs, subscriber)
   end
