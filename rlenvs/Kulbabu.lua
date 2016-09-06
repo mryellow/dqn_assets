@@ -158,7 +158,7 @@ function Kulbabu:step(action)
       action = self.repeat_action
       self.repeat_steps = self.repeat_steps - 1
     elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
-      log.info('Escape')
+      --log.info('Escape')
       self.repeat_steps = self.repeat_for
       self.repeat_action = math.random(3,4)
       action = self.repeat_action
@@ -244,8 +244,6 @@ function Kulbabu:escapeCheck()
   local dis = math.abs(
     (finish.y - begin.y)/math.sin(rad)
   )
-
-  log.info('dis: ' .. dis)
 
   return dis < self.escape_min
 end
