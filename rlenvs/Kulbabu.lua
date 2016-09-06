@@ -58,9 +58,9 @@ function Kulbabu:_init(opts)
   self.train = false
 
   -- Message queue to communicate between threads.
-  self.chan = chan.get("kulbabu")
+  self.chan = chan.get("kulbabu_mq")
   if not self.chan then
-    self.chan = chan.new("kulbabu")
+    self.chan = chan.new("kulbabu_mq")
   end
 
   self.subs = {}
@@ -176,11 +176,15 @@ function Kulbabu:step(action)
     -- Delay execution, giving state time to change
     duration:sleep()
 
-    -- TODO: Calculate remaining time available in step
-    local json = self.chan:recv(self.frame_time/2)
-    if json then
-      local msg = JSON:decode(json)
-      self:processState(msg)
+    -- TODO: Calculate remaining time available in steps, or do before sleeping
+    if __threadid > 0 then
+      --local json = self.chan:recv(self.frame_time/2)
+      local json = self.chan:recv()
+      if json then
+        --print('recv ' .. self.ns)
+        local msg = JSON:decode(json)
+        self:processState(msg)
+      end
     end
   end
 
@@ -319,6 +323,7 @@ function Kulbabu:createSubs()
       msg = msg:gsub('(%})%s*("%w*":)', '%1,%2')
       -- Remove extra comma on end
       msg = msg:gsub(',%s*([%]%}])', '%1')
+      --print('send ' .. self.ns)
       self.chan:send(msg, self.frame_time/2)
     end)
     table.insert(self.subs, subscriber)
