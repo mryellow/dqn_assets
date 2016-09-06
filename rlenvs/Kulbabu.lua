@@ -10,6 +10,7 @@ local Kulbabu = classic.class('Kulbabu')
 function Kulbabu:_init(opts)
   opts = opts or {}
 
+  self.async = opts.async or false
   self.threads = opts.threads or 1
   self.width = opts.width or 8
   self.height = opts.height or 1
@@ -168,6 +169,8 @@ function Kulbabu:step(action)
     self.robot_pose_log[(self.steps % self.escape_steps) + 1] = self.robot_pose.position
   end
 
+  --log.info('Action: ' .. action)
+
   -- Publish twists for actions
   self:pubAction(action)
 
@@ -179,7 +182,7 @@ function Kulbabu:step(action)
     duration:sleep()
 
     -- TODO: Calculate remaining time available in steps, or do before sleeping
-    if __threadid and __threadid > 0 then
+    if self.async and __threadid and __threadid > 0 then
       --local json = self.chan:recv(self.frame_time/2)
       local json = self.chan:recv()
       if json then
@@ -311,7 +314,7 @@ function Kulbabu:createSubs()
     -- TODO: Warn if no messages coming through?
     subscriber:registerCallback(function(msg, header)
       self:processState(msg)
-      if self.threads > 1 then
+      if self.async then
         local msg = tostring(msg)
         -- Remove message type headers
         msg = msg:gsub('[^%s]*_msgs%/[^%s]+', '')
