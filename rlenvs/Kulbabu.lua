@@ -1,6 +1,8 @@
 local ros = require('ros')
 local signal = require('posix.signal')
 local socket = require('socket')
+local chan = require('chan')
+local JSON = require('JSON')
 local classic = require 'classic'
 
 local Kulbabu = classic.class('Kulbabu')
@@ -56,6 +58,12 @@ function Kulbabu:_init(opts)
 
   self.train = false
 
+  -- Message queue to communicate between threads.
+  self.chan = chan.get("kulbabu")
+  if not self.chan then
+    self.chan = chan.new("kulbabu")
+  end
+
   self.subs = {}
   self.pubs = {}
 
@@ -88,24 +96,6 @@ function Kulbabu:_init(opts)
   self.robot_pose_log = {}
 
   self.steps = 0
-
-  if not ros.isInitialized() then
-    ros.init(self.ns .. "_dqn")
-  end
-
-  if not ros.isStarted() then
-    __ros_spinner = ros.AsyncSpinner()
-    __ros_spinner:start()
-  end
-
-  self.nh = ros.NodeHandle()
-
-  -- TODO: Capture sigint destroy pub/subs and `ros.shutdown()``
-  signal.signal(signal.SIGINT, function(signum)
-    io.write("\n")
-    ros.shutdown()
-    os.exit(128 + signum)
-  end)
 end
 
 function Kulbabu:getStateSpec()
@@ -127,19 +117,26 @@ function Kulbabu:getRewardSpec()
 end
 
 function Kulbabu:training()
+  log.info('Training')
   self.train = true
 end
 
 function Kulbabu:evaluate()
+  log.info('Evaluating')
   self.train = false
 end
 
 -- Starts new game
 function Kulbabu:start()
+  log.info("Start: " .. self.ns)
+
   self.steps = 0
 
   -- Reset screen
   self.screen:zero()
+
+  -- Setup ROS spinner
+  self:initRos()
 
   -- Subscribe to ROS topics
   self:createSubs()
@@ -162,6 +159,7 @@ function Kulbabu:step(action)
       action = self.repeat_action
       self.repeat_steps = self.repeat_steps - 1
     elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
+      log.info('Escape')
       self.repeat_steps = self.repeat_for
       self.repeat_action = math.random(3,4)
       action = self.repeat_action
@@ -179,6 +177,13 @@ function Kulbabu:step(action)
   -- Spin ROS and get messages
   if ros.ok() then
     ros.spinOnce()
+    -- TODO: Sleep here? Letting state messages accumulate after action
+
+    local json = self.chan:recv(1000)
+    if json then
+      local msg = JSON:decode(json)
+      self:processState(msg)
+    end
   end
 
   -- Get/update relative location
@@ -202,6 +207,27 @@ function Kulbabu:step(action)
   return reward, self.screen, terminal, action
 end
 
+function Kulbabu:processState(msg)
+  if not msg then
+    return false
+  end
+
+  local robot_key = get_key_for_value(msg.name, self.ns)
+  --log.info("robot: " .. self.ns .. " " .. msg.pose[robot_key].position.x .. "/" .. msg.pose[robot_key].position.y)
+  if robot_key then
+    self.robot_pose.position = msg.pose[robot_key].position
+    self.robot_pose.orientation = msg.pose[robot_key].orientation
+  end
+  local goal_key = get_key_for_value(msg.name, self.ns .. "/goal")
+  --log.info("goal: " .. self.ns .. "/goal" .. " " .. msg.pose[goal_key].position.x .. "/" .. msg.pose[goal_key].position.y)
+  if goal_key then
+    self.goal_pose.position = msg.pose[goal_key].position
+    self.goal_pose.orientation = msg.pose[goal_key].orientation
+  end
+
+  return true
+end
+
 function Kulbabu:escapeCheck()
   local begin = self.robot_pose_log[1]
   local finish = self.robot_pose_log[#self.robot_pose_log]
@@ -221,6 +247,8 @@ function Kulbabu:escapeCheck()
     (finish.y - begin.y)/math.sin(rad)
   )
 
+  log.info('dis: ' .. dis)
+
   return dis < self.escape_min
 end
 
@@ -230,6 +258,32 @@ function Kulbabu:getDisplay()
   return self.screen
 end
 
+function Kulbabu:initRos()
+  if not ros.isInitialized() then
+    --log.info('ROS Initialise')
+    ros.init(self.ns .. "_dqn")
+  end
+
+  if not ros.isStarted() then
+    --log.info('ROS Start Spinner')
+    local spinner = ros.AsyncSpinner()
+    if spinner:canStart() then
+      spinner:start()
+    end
+  end
+
+  self.nh = ros.NodeHandle()
+
+  -- TODO: Capture sigint destroy pub/subs and `ros.shutdown()``
+  signal.signal(signal.SIGINT, function(signum)
+    io.write("\n")
+    self:destroySubs()
+    self:destroyPubs()
+    ros.shutdown()
+    os.exit(128 + signum)
+  end)
+end
+
 function Kulbabu:createSubs()
   self:destroySubs()
 
@@ -237,7 +291,7 @@ function Kulbabu:createSubs()
   -- Subscribe to range sensor topics and update state
   for i, topic in ipairs(self.range_topics) do
     log.info("Subscribe: /" .. self.ns .. "/" .. topic)
-    subscriber = self.nh:subscribe("/" .. self.ns .. "/" .. topic, self.range_msg, 100)
+    subscriber = self.nh:subscribe("/" .. self.ns .. "/" .. topic, self.range_msg, 10)
     subscriber:registerCallback(function(msg, header)
       --log.info(msg.range / msg.max_range)
       self.screen[{{1}, {1}, {i}}] = math.max(0,1 - (msg.range / msg.max_range))
@@ -246,22 +300,30 @@ function Kulbabu:createSubs()
   end
 
   -- Subscribe to states for goal relative position
-  subscriber = self.nh:subscribe("/gazebo/model_states", "gazebo_msgs/ModelStates", 100)
-  subscriber:registerCallback(function(msg, header)
-    local robot_key = get_key_for_value(msg.name, self.ns)
-    --log.info("robot: " .. msg.pose[robot_key].position.x .. "/" .. msg.pose[robot_key].position.y)
-    if robot_key then
-      self.robot_pose.position = msg.pose[robot_key].position
-      self.robot_pose.orientation = msg.pose[robot_key].orientation
-    end
-    local goal_key = get_key_for_value(msg.name, self.ns .. "/goal")
-    --log.info("goal: " .. msg.pose[goal_key].position.x .. "/" .. msg.pose[goal_key].position.y)
-    if goal_key then
-      self.goal_pose.position = msg.pose[goal_key].position
-      self.goal_pose.orientation = msg.pose[goal_key].orientation
-    end
-  end)
-  table.insert(self.subs, subscriber)
+  -- Only first thread subscribes to gazebo
+  if not __threadid or __threadid == 0 then
+    log.info("Subscribe: /gazebo/model_states")
+    subscriber = self.nh:subscribe("/gazebo/model_states", "gazebo_msgs/ModelStates", 10)
+    subscriber:registerCallback(function(msg, header)
+      self:processState(msg)
+
+      local msg = tostring(msg)
+      -- Remove message type headers
+      msg = msg:gsub('[^%s]*_msgs%/[^%s]+', '')
+      -- Quote key name strings
+      msg = msg:gsub('([%w]+)%s:', '"%1":')
+      -- Put comma on end of arrays
+      msg = msg:gsub('].[^%}]', '],')
+      -- Put comma between fields
+      msg = msg:gsub('([^%{]......)("%w":)', '%1,%2')
+      -- Put comma between objects
+      msg = msg:gsub('(%})%s*("%w*":)', '%1,%2')
+      -- Remove extra comma on end
+      msg = msg:gsub(',%s*([%]%}])', '%1')
+      self.chan:send(msg)
+    end)
+    table.insert(self.subs, subscriber)
+  end
 end
 
 -- Destroy any existing subscriptions
