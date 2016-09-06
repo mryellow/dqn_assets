@@ -160,7 +160,7 @@ function Kulbabu:step(action)
       action = self.repeat_action
       self.repeat_steps = self.repeat_steps - 1
     elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
-      log.info('Escape')
+      --log.info('Escape')
       self.repeat_steps = self.repeat_for
       self.repeat_action = math.random(3,4)
       action = self.repeat_action
@@ -179,7 +179,7 @@ function Kulbabu:step(action)
     duration:sleep()
 
     -- TODO: Calculate remaining time available in steps, or do before sleeping
-    if __threadid > 0 then
+    if __threadid and __threadid > 0 then
       --local json = self.chan:recv(self.frame_time/2)
       local json = self.chan:recv()
       if json then
@@ -197,7 +197,7 @@ function Kulbabu:step(action)
   -- Calculate reward based on reaching goal
   --reward = math.max(0,1 - (dis / self.goal_max))
   if dis < self.goal_min then
-    log.info('Goal reached')
+    --log.info('Goal reached')
     --self:pubGoalMove()
     reward = 1
   end
@@ -251,7 +251,7 @@ function Kulbabu:escapeCheck()
     (finish.y - begin.y)/math.sin(rad)
   )
 
-  log.info('dis: ' .. dis)
+  --log.info('dis: ' .. dis)
 
   return dis < self.escape_min
 end
