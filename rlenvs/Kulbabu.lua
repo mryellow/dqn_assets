@@ -1,6 +1,5 @@
 local ros = require('ros')
 local signal = require('posix.signal')
-local socket = require('socket')
 local chan = require('chan')
 local JSON = require('JSON')
 local classic = require 'classic'
@@ -170,16 +169,15 @@ function Kulbabu:step(action)
   -- Publish twists for actions
   self:pubAction(action)
 
-  -- Delay execution, giving state time to change
-  -- TODO: What does `ros.sleep()` do? Sleep ros or current process?
-  socket.sleep(self.frame_time)
-
   -- Spin ROS and get messages
+  duration = ros.Duration(self.frame_time)
   if ros.ok() then
     ros.spinOnce()
-    -- TODO: Sleep here? Letting state messages accumulate after action
+    -- Delay execution, giving state time to change
+    duration:sleep()
 
-    local json = self.chan:recv(1000)
+    -- TODO: Calculate remaining time available in step
+    local json = self.chan:recv(self.frame_time/2)
     if json then
       local msg = JSON:decode(json)
       self:processState(msg)
