@@ -91,6 +91,13 @@ function Kulbabu:_init(opts)
   self.robot_pose_log = {}
 
   self.steps = 0
+
+  -- Message queue to communicate between threads.
+  self.mq = chan.get("kulbabu_mq")
+  if not self.mq then
+    --log.info("Creating MQ")
+    self.mq = chan.new("kulbabu_mq", self.threads)
+  end
 end
 
 function Kulbabu:getStateSpec()
@@ -124,13 +131,6 @@ end
 -- Starts new game
 function Kulbabu:start()
   log.info("Start: " .. self.ns)
-
-  -- Message queue to communicate between threads.
-  self.chan = chan.get("kulbabu_mq")
-  if not self.chan then
-    log.info("Creating MQ")
-    self.chan = chan.new("kulbabu_mq", self.threads)
-  end
 
   self.steps = 0
 
@@ -182,9 +182,10 @@ function Kulbabu:step(action)
     duration:sleep()
 
     -- TODO: Calculate remaining time available in steps, or do before sleeping
-    if self.async and __threadid and __threadid > 0 then
-      --local json = self.chan:recv(self.frame_time/2)
-      local json = self.chan:recv()
+    --if self.async and __threadid and __threadid > 0 then
+    if self.async and __threadid ~= 1 then
+      local json = self.mq:recv(self.frame_time)
+      --local json = self.mq:recv()
       if json then
         --print('recv ' .. self.ns)
         local msg = JSON:decode(json)
@@ -308,7 +309,9 @@ function Kulbabu:createSubs()
 
   -- Subscribe to states for goal relative position
   -- Only first thread subscribes to gazebo
-  if not __threadid or __threadid == 0 then
+  --if not __threadid or __threadid == 0 then
+  -- Using thread 1 as validation agent stops after filling memory.
+  if not self.async or self.async and __threadid == 1 then
     log.info("Subscribe: /gazebo/model_states")
     subscriber = self.nh:subscribe("/gazebo/model_states", "gazebo_msgs/ModelStates", 10)
     -- TODO: Warn if no messages coming through?
@@ -329,8 +332,8 @@ function Kulbabu:createSubs()
         -- Remove extra comma on end
         msg = msg:gsub(',%s*([%]%}])', '%1')
         --print('send ' .. self.ns)
-        --self.chan:send(msg, self.frame_time/2)
-        self.chan:send(msg)
+        self.mq:send(msg, self.frame_time)
+        --self.mq:send(msg)
       end
     end)
     table.insert(self.subs, subscriber)
