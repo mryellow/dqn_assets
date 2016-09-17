@@ -28,7 +28,7 @@ function Kulbabu:_init(opts)
 
   -- Escape sequence
   self.escape_steps = self.frame_rate * 20 -- seconds at frame_rate Hz
-  self.escape_min = 0.15 -- Distance in metres
+  self.escape_min = 0.25 -- Distance in metres
   self.repeat_for = self.frame_rate * 4
   self.repeat_steps = 0
   self.repeat_action = 0
@@ -163,7 +163,7 @@ function Kulbabu:step(action)
     elseif self.steps % self.escape_steps == 0 and self:escapeCheck() then
       --log.info('Escape')
       self.repeat_steps = self.repeat_for
-      self.repeat_action = math.random(3,4)
+      self.repeat_action = math.random(1,4)
       action = self.repeat_action
     end
     self.robot_pose_log[(self.steps % self.escape_steps) + 1] = self.robot_pose.position
